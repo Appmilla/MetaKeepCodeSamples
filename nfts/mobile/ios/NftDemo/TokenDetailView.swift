@@ -12,9 +12,10 @@ import MetaKeep
 
 func getSDK(email: String) -> MetaKeep {
     // Initialize the SDK
-    let sdk = MetaKeep(appId: "2452849e-d6e9-40ef-bbfd-5dfdc7ce1728", appContext: AppContext())
+    //let sdk = MetaKeep(appId: "2452849e-d6e9-40ef-bbfd-5dfdc7ce1728", appContext: AppContext())
+    let sdk = MetaKeep(appId: "930ce70d-39e0-4733-a8ec-77563cd33947", appContext: AppContext())
     sdk.environment = Environment.production
-    
+       
     if email != "" {
         sdk.user = User(email: email)
     }
@@ -22,16 +23,18 @@ func getSDK(email: String) -> MetaKeep {
 }
 
 struct ConsentTokenResponse: Codable {
-    let consentToken: String
     let status: String
+    let consentToken: String
 }
 
 struct ConsentTokenRequest: Encodable {
+    let nft: [String: String]
     let token: String
     let from: [String: String]
     let to: [String: String] // swiftlint:disable:this identifier_name
     
     enum CodingKeys: String, CodingKey {
+        case nft
         case token
         case from
         case to // swiftlint:disable:this identifier_name
@@ -39,6 +42,7 @@ struct ConsentTokenRequest: Encodable {
     
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(nft, forKey: .nft)
         try container.encode(token, forKey: .token)
         try container.encode(from, forKey: .from)
         try container.encode(to, forKey: .to)
@@ -67,6 +71,9 @@ struct TokenDetailView: View {
     @State var status: String = "UNKNOWN"
     let token: Token
     let owner: String
+    
+    //var idempotencyKey: Int = 2
+    
     var body: some View {
         VStack {
             Text("\(token.name) (\(token.symbol))").padding()
@@ -108,14 +115,20 @@ struct TokenDetailView: View {
     
     private func transferNft() {
         // Make the API Call Here.
-        let url = URL(string: "http://localhost:3001/getConsentToken")!
-        
+        //let url = URL(string: "http://localhost:3001/getConsentToken")!
+        let url = URL(string: "https://api.metakeep.xyz/v2/app/nft/transfer")!
+        let uniqueID = UUID().uuidString
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
+        request.setValue("application/json", forHTTPHeaderField: "accept")
+        request.setValue("Ak8h6uBOPU8jDitksRbGj0LdLD8oCSJAmdCgnAJZg/z+", forHTTPHeaderField: "x-api-key")
+        //request.setValue("IdempotencyKey\(idempotencyKey)", forHTTPHeaderField: "Idempotency-Key")
+        request.setValue(uniqueID, forHTTPHeaderField: "Idempotency-Key")
+        
         // swiftlint:disable:next force_try
-        let jsonData = try! JSONEncoder().encode(ConsentTokenRequest(token: self.token.token, from: ["email": self.owner], to: ["email": self.email])) // swiftlint:disable:this line_length
+        let jsonData = try! JSONEncoder().encode(ConsentTokenRequest(nft: ["collection": self.token.collection], token: self.token.token, from: ["email": self.owner], to: ["email": self.email])) // swiftlint:disable:this line_length
         
         request.httpBody = jsonData
         
@@ -133,7 +146,8 @@ struct TokenDetailView: View {
                 do {
                     let decodedResponse = try JSONDecoder().decode(ConsentTokenResponse.self, from: data
                     )
-                    let sdk = getSDK(email: "")
+                    //let sdk = getSDK(email: "")
+                    let sdk = getSDK(email: self.owner)
                     let consentToken: String = decodedResponse.consentToken
                     sdk.getConsent(
                         consentToken: consentToken,
